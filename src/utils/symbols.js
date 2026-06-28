@@ -22,6 +22,7 @@ export const SYMBOL_GROUPS = [
       { char: '∪', name: '并集', tip: '∪ 并集' },
       { char: '∩', name: '交集', tip: '∩ 交集' },
       { char: '−', name: '差集', tip: '− 差集' },
+      { char: '÷', name: '除法', tip: '÷ 除法' },
     ],
   },
   {

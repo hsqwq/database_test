@@ -4,11 +4,21 @@ const TYPE_OPTIONS = [
   { value: 'relational_algebra', label: '关系代数' },
 ];
 
+const DIFFICULTY_OPTIONS = [
+  { value: 'mixed', label: '混合难度（推荐）' },
+  { value: 'easy', label: '偏简单（基础题为主）' },
+  { value: 'hard', label: '偏困难（综合题为主）' },
+];
+
 export default function ExerciseGenerator({
   questionTypes,
   questionCount,
+  difficultyMode,
+  userPrompt,
   onTypesChange,
   onCountChange,
+  onDifficultyChange,
+  onUserPromptChange,
   onGenerate,
   loading,
   disabled,
@@ -61,6 +71,40 @@ export default function ExerciseGenerator({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="form-group">
+        <label className="input-label" htmlFor="difficulty-mode">
+          难度偏好
+        </label>
+        <select
+          id="difficulty-mode"
+          className="select-input"
+          value={difficultyMode}
+          onChange={(e) => onDifficultyChange(e.target.value)}
+          disabled={loading}
+        >
+          {DIFFICULTY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="form-group">
+        <label className="input-label" htmlFor="user-prompt">
+          补充要求（可选）
+        </label>
+        <textarea
+          id="user-prompt"
+          className="text-input user-prompt-input"
+          value={userPrompt}
+          onChange={(e) => onUserPromptChange(e.target.value)}
+          disabled={loading}
+          placeholder="如：多出一些子查询相关的题目、侧重外键约束、难度大一点..."
+          rows={2}
+        />
       </div>
 
       <button

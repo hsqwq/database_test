@@ -7,6 +7,12 @@ const TYPE_LABELS = {
   relational_algebra: '关系代数',
 };
 
+const DIFFICULTY_LABELS = {
+  easy: '简单',
+  medium: '中等',
+  hard: '困难',
+};
+
 export default function QuestionCard({
   exercise,
   answer,
@@ -24,8 +30,8 @@ export default function QuestionCard({
       const el = textareaRef.current;
       if (!el) return;
 
-      const start = el.selectionStart ?? answer.length;
-      const end = el.selectionEnd ?? answer.length;
+      const start = el.selectionStart ?? (answer || '').length;
+      const end = el.selectionEnd ?? (answer || '').length;
       const newValue =
         (answer ?? '').substring(0, start) +
         symbol +
@@ -37,7 +43,6 @@ export default function QuestionCard({
     [answer, exercise.id, onAnswerChange]
   );
 
-  // 光标恢复：在 answer 更新后把光标放到符号后
   useEffect(() => {
     if (isActive && textareaRef.current && pendingCursorRef.current !== null) {
       const pos = pendingCursorRef.current;
@@ -58,7 +63,14 @@ export default function QuestionCard({
   return (
     <div className={`question-card ${isActive ? 'focused' : ''}`}>
       <div className="question-header">
-        <span className="question-type-badge">{TYPE_LABELS[exercise.type] || exercise.type}</span>
+        <div className="question-badges">
+          <span className="question-type-badge">{TYPE_LABELS[exercise.type] || exercise.type}</span>
+          {exercise.difficulty && (
+            <span className={`difficulty-badge difficulty-${exercise.difficulty}`}>
+              {DIFFICULTY_LABELS[exercise.difficulty] || exercise.difficulty}
+            </span>
+          )}
+        </div>
         <span className="question-number">第 {exercise.id} 题</span>
       </div>
 
@@ -66,16 +78,14 @@ export default function QuestionCard({
         <p className="question-text">{exercise.question}</p>
         {exercise.schema_context && (
           <div className="schema-context">
-            <strong>相关表结构：</strong>
+            <strong>补充表信息：</strong>
             <pre>{exercise.schema_context}</pre>
           </div>
         )}
       </div>
 
       <div className="answer-area">
-        <label className="input-label">
-          你的答案：
-        </label>
+        <label className="input-label">你的答案：</label>
         <textarea
           ref={textareaRef}
           className="answer-textarea"
@@ -93,13 +103,28 @@ export default function QuestionCard({
       {feedback && (
         <div className={`feedback-inline ${feedback.correct ? 'correct' : 'incorrect'}`}>
           <div className="feedback-score">
-            {feedback.correct ? '✓ 正确' : '✗ 有误'} — {feedback.score} 分
+            {feedback.correct ? '✓' : '✗'} {feedback.semantic_judgement || ''} — {feedback.score} 分
           </div>
           <p className="feedback-text">{feedback.feedback}</p>
-          {feedback.corrected_answer && (
+
+          {feedback.strengths && feedback.strengths.length > 0 && (
+            <div className="feedback-detail-block strengths">
+              <strong>✓ 优点：</strong>
+              <ul>{feedback.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
+            </div>
+          )}
+
+          {feedback.issues && feedback.issues.length > 0 && (
+            <div className="feedback-detail-block issues">
+              <strong>⚠ 问题：</strong>
+              <ul>{feedback.issues.map((iss, i) => <li key={i}>{iss}</li>)}</ul>
+            </div>
+          )}
+
+          {feedback.suggested_answer && feedback.suggested_answer !== '答案正确' && (
             <div className="corrected-answer">
-              <strong>修正后的答案：</strong>
-              <pre>{feedback.corrected_answer}</pre>
+              <strong>建议答案：</strong>
+              <pre>{feedback.suggested_answer}</pre>
             </div>
           )}
         </div>

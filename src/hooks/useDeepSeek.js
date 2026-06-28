@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { callDeepSeek } from '../utils/api';
 import { parseAIResponse } from '../utils/parseResponse';
+import { validateExerciseBatch, buildRepairPrompt } from '../utils/exerciseValidator';
 
 export function useDeepSeek(apiKey) {
   const [generateLoading, setGenerateLoading] = useState(false);
@@ -17,8 +18,12 @@ export function useDeepSeek(apiKey) {
     }
   }, []);
 
+  /**
+   * 生成练习题，含结构校验 + 最多一次修复重试
+   * @returns {{ exercises, sessionSchemaContext } | null}
+   */
   const generateExercises = useCallback(
-    async (messages) => {
+    async (plan) => {
       abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -26,29 +31,57 @@ export function useDeepSeek(apiKey) {
       setGenerateLoading(true);
       setGenerateError(null);
 
-      try {
+      const MAX_RETRIES = 1;
+
+      async function attempt(messages, attemptNum) {
         const raw = await callDeepSeek(apiKey, messages, {
-          temperature: 0.8,
+          temperature: 0.75,
           jsonMode: true,
           signal: controller.signal,
         });
         const parsed = parseAIResponse(raw);
 
-        if (!parsed.exercises || !Array.isArray(parsed.exercises)) {
-          throw new Error('AI 返回的数据中缺少 exercises 数组');
-        }
-
-        const validExercises = parsed.exercises.filter(
-          (ex) => ex.id && ex.type && ex.question
+        // 结构校验
+        const validation = validateExerciseBatch(
+          parsed,
+          plan.questionCount,
+          plan.selectedSchemaSets
         );
 
-        if (validExercises.length === 0) {
-          throw new Error('AI 未生成有效题目，请重试');
+        if (validation.valid) {
+          return {
+            exercises: parsed.exercises,
+            sessionSchemaContext: parsed.session_schema_context || null,
+          };
         }
+
+        // 如果结构有问题且还有重试次数
+        if (attemptNum < MAX_RETRIES) {
+          const repairMsgs = buildRepairPrompt(raw, validation.issues);
+          return attempt(repairMsgs, attemptNum + 1);
+        }
+
+        // 最后机会：结构校验失败但尝试提取可用的 exercises
+        if (parsed.exercises && Array.isArray(parsed.exercises)) {
+          const usable = parsed.exercises.filter((ex) => ex.id && ex.type && ex.question);
+          if (usable.length > 0) {
+            return {
+              exercises: usable,
+              sessionSchemaContext: parsed.session_schema_context || null,
+              validationWarnings: validation.issues,
+            };
+          }
+        }
+
+        throw new Error(`AI 返回数据格式校验失败: ${validation.issues.map((i) => i.message).join('; ')}`);
+      }
+
+      try {
+        const result = await attempt(plan.messages, 0);
 
         setGenerateLoading(false);
         abortRef.current = null;
-        return validExercises;
+        return result;
       } catch (err) {
         if (err.name === 'AbortError') {
           setGenerateLoading(false);
@@ -63,6 +96,10 @@ export function useDeepSeek(apiKey) {
     [apiKey, abort]
   );
 
+  /**
+   * 批改答案
+   * @returns {Array | null} results 数组
+   */
   const checkAnswers = useCallback(
     async (messages) => {
       abort();
@@ -74,7 +111,7 @@ export function useDeepSeek(apiKey) {
 
       try {
         const raw = await callDeepSeek(apiKey, messages, {
-          temperature: 0.3,
+          temperature: 0.25,
           jsonMode: true,
           signal: controller.signal,
         });
